@@ -269,7 +269,7 @@
                 <div class="server-buttons">
                     <strong>Select Server:</strong><br><br>
                     <% movie.videoLinks.forEach((link, index) => { %>
-                        <button class="server-btn" tabindex="0" onclick="switchVideoServer('<%= link.url %>')">
+                        <button class="server-btn link-btn <%= index === 0 ? 'active' : '' %>" tabindex="0" onclick="switchVideoServer('<%= link.url %>', this)">
                             <%= link.name || 'Server ' + (index + 1) %>
                         </button>
                     <% }) %>
@@ -316,9 +316,16 @@
             return (match && match[2].length === 11) ? match[2] : null;
         }
 
-        function switchVideoServer(url) {
+        function switchVideoServer(url, elementBtn) {
             if (!url) return;
             url = processDriveUrl(url);
+
+            // Active Class Fix for Buttons
+            if (elementBtn) {
+                const siblingBtns = elementBtn.parentElement.querySelectorAll('.server-btn');
+                siblingBtns.forEach(btn => btn.classList.remove('active'));
+                elementBtn.classList.add('active');
+            }
 
             const mediaArea = document.getElementById('mediaArea');
             const controlsBox = document.getElementById('controlsBox');
@@ -346,8 +353,9 @@
                 mediaArea.innerHTML = `<iframe id="embedPlayer" src="${url}" allowfullscreen allow="autoplay" scrolling="no"></iframe>`;
                 if (controlsBox) controlsBox.style.display = 'none';
             } else {
+                const posterUrl = movieData.poster || 'https://via.placeholder.com/300x400?text=No+Poster';
                 mediaArea.innerHTML = `
-                    <video id="mainVideo" controls autoplay poster="<%= movie.poster || 'https://via.placeholder.com/300x400?text=No+Poster' %>">
+                    <video id="mainVideo" controls autoplay poster="${posterUrl}">
                         <source src="${url}" type="video/mp4">
                         Your browser does not support the video element.
                     </video>
@@ -386,10 +394,12 @@
                     let epTitle = ep.title ? ep.title : ('Episode ' + epNum);
 
                     const btn = document.createElement('button');
-                    btn.className = 'server-btn';
+                    btn.className = 'server-btn ep-btn' + (idx === 0 ? ' active' : '');
                     btn.setAttribute('tabindex', '0');
                     btn.innerText = epTitle;
-                    btn.onclick = () => switchVideoServer(epUrl);
+                    btn.onclick = function() {
+                        switchVideoServer(epUrl, this);
+                    };
                     episodesButtonsBox.appendChild(btn);
                 });
             }
@@ -404,9 +414,9 @@
                     btn.className = 'server-btn season-btn' + (idx === 0 ? ' active' : '');
                     btn.setAttribute('tabindex', '0');
                     btn.innerText = 'Season ' + sKey;
-                    btn.onclick = () => {
+                    btn.onclick = function() {
                         document.querySelectorAll('.season-btn').forEach(b => b.classList.remove('active'));
-                        btn.classList.add('active');
+                        this.classList.add('active');
                         renderEpisodes(sKey);
                     };
                     seasonButtonsBox.appendChild(btn);
@@ -436,7 +446,7 @@
             const video = document.getElementById('mainVideo');
             if (!video) return;
 
-            const activeTag = document.activeElement.tagName;
+            const activeTag = document.activeElement ? document.activeElement.tagName : '';
             if (activeTag === 'INPUT' || activeTag === 'TEXTAREA') return;
 
             if (e.key === 'ArrowLeft' || e.keyCode === 37) {

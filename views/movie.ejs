@@ -195,26 +195,21 @@
 
             function isTeraboxLink(url) {
                 if (!url || typeof url !== 'string') return false;
-                return /terabox|neobox|teraboxapp|1024tera|freeterabox|1024terabox|teraboxlink|momerybox|api\/streaming/i.test(url);
-            }
-
-            function getCleanTeraboxUrl(url) {
-                if (!url || typeof url !== 'string') return url;
-                if (url.includes('api/streaming')) {
-                    try {
-                        let parsedUrl = new URL(url);
-                        let pathParam = parsedUrl.searchParams.get('path');
-                        if (pathParam) {
-                            return 'https://www.terabox.com/sharing/link?surl=' + pathParam;
-                        }
-                    } catch(e) {}
-                }
-                return url;
+                return /terabox|neobox|teraboxapp|1024tera|freeterabox|1024terabox|teraboxlink|momerybox/i.test(url);
             }
 
             function isGenericEmbed(url) {
                 if (!url || typeof url !== 'string') return false;
                 return url.includes('/e/') || url.includes('/embed/') || url.includes('tpead.net') || url.includes('drive.google.com');
+            }
+
+            // প্রক্সি লিঙ্ক প্রসেস করার ফাংশন (Direct MP4 Block Bypass)
+            function getProxyStreamUrl(url) {
+                if (!url || typeof url !== 'string') return url;
+                if (url.startsWith('http') && url.includes('.mp4') && !url.includes('drive.google.com')) {
+                    return '/api/stream?url=' + encodeURIComponent(url);
+                }
+                return url;
             }
             
             // Initial URL extraction
@@ -230,9 +225,9 @@
 
             initialUrl = formatDriveUrl(initialUrl);
             let initialIsTerabox = isTeraboxLink(initialUrl);
-            let initialCleanTeraboxUrl = getCleanTeraboxUrl(initialUrl);
             let initialYouTubeEmbed = getYouTubeEmbedUrl(initialUrl);
             let initialIsEmbed = isGenericEmbed(initialUrl);
+            let initialStreamUrl = getProxyStreamUrl(initialUrl);
             let defaultPoster = 'https://via.placeholder.com/300x400?text=No+Poster';
         %>
 
@@ -241,7 +236,7 @@
                 <% if (initialIsTerabox) { %>
                     <div class="terabox-container">
                         <p style="font-size: 20px; font-weight: 600; margin-bottom: 15px; color: #fff;">TeraBox Server Selected</p>
-                        <a href="<%= initialCleanTeraboxUrl %>" target="_blank" rel="noopener noreferrer" class="terabox-btn">
+                        <a href="<%= initialUrl %>" target="_blank" rel="noopener noreferrer" class="terabox-btn">
                             ▶ Click Here to Watch / Download
                         </a>
                         <span style="font-size: 13px; color: #9ca3af; margin-top: 12px;">Play directly on TeraBox server without error</span>
@@ -251,9 +246,9 @@
                 <% } else if (initialIsEmbed) { %>
                     <iframe id="embedPlayer" src="<%= initialUrl %>" allowfullscreen allow="autoplay" scrolling="no"></iframe>
                 <% } else { %>
-                    <!-- FIX: Hotlinking সমস্যা এড়াতে referrerpolicy="no-referrer" যোগ করা হয়েছে -->
-                    <video id="mainVideo" controls autoplay referrerpolicy="no-referrer" poster="<%= movie.poster || defaultPoster %>">
-                        <source src="<%= initialUrl %>" type="video/mp4">
+                    <!-- FIX: backend proxy dynamic routing added -->
+                    <video id="mainVideo" controls autoplay poster="<%= movie.poster || defaultPoster %>">
+                        <source src="<%= initialStreamUrl %>" type="video/mp4">
                         Your browser does not support the video element.
                     </video>
                 <% } %>
@@ -332,21 +327,11 @@
             return (match && match[2].length === 11) ? match[2] : null;
         }
 
-        function isTeraboxLink(url) {
-            if (!url || typeof url !== 'string') return false;
-            return /terabox|neobox|teraboxapp|1024tera|freeterabox|1024terabox|teraboxlink|momerybox|api\/streaming/i.test(url);
-        }
-
-        function getCleanTeraboxUrl(url) {
+        // ক্লায়েন্ট-সাইডে সরাসরি MP4 লিংকের জন্য প্রক্সি তৈরি
+        function getProxyStreamUrl(url) {
             if (!url || typeof url !== 'string') return url;
-            if (url.includes('api/streaming')) {
-                try {
-                    let parsedUrl = new URL(url);
-                    let pathParam = parsedUrl.searchParams.get('path');
-                    if (pathParam) {
-                        return 'https://www.terabox.com/sharing/link?surl=' + pathParam;
-                    }
-                } catch(e) {}
+            if (url.startsWith('http') && url.includes('.mp4') && !url.includes('drive.google.com')) {
+                return '/api/stream?url=' + encodeURIComponent(url);
             }
             return url;
         }
@@ -358,16 +343,15 @@
             const mediaArea = document.getElementById('mediaArea');
             const controlsBox = document.getElementById('controlsBox');
             
-            const isTeraBox = isTeraboxLink(url);
+            const isTeraBox = /terabox|neobox|teraboxapp|1024tera|freeterabox|1024terabox|teraboxlink|momerybox/i.test(url);
             const ytId = parseYouTubeUrl(url);
             const isEmbedLink = url.includes('/e/') || url.includes('/embed/') || url.includes('tpead.net') || url.includes('drive.google.com');
 
             if (isTeraBox) {
-                const targetUrl = getCleanTeraboxUrl(url);
                 mediaArea.innerHTML = `
                     <div class="terabox-container">
                         <p style="font-size: 20px; font-weight: 600; margin-bottom: 15px; color: #fff;">TeraBox Server Selected</p>
-                        <a href="${targetUrl}" target="_blank" rel="noopener noreferrer" class="terabox-btn">
+                        <a href="${url}" target="_blank" rel="noopener noreferrer" class="terabox-btn">
                             ▶ Click Here to Watch / Download
                         </a>
                         <span style="font-size: 13px; color: #9ca3af; margin-top: 12px;">Play directly on TeraBox server without error</span>
@@ -381,10 +365,12 @@
                 mediaArea.innerHTML = `<iframe id="embedPlayer" src="${url}" allowfullscreen allow="autoplay" scrolling="no"></iframe>`;
                 if (controlsBox) controlsBox.style.display = 'none';
             } else {
-                // FIX: JS থেকে সার্ভার সুইচ করলেও ডাইরেক্ট লিঙ্কগুলোতে যেন referrerpolicy থাকে
+                // FIX: প্রক্সি লিংকের মাধ্যমে প্লেয়ার লোড করা
+                const finalStreamUrl = getProxyStreamUrl(url);
+
                 mediaArea.innerHTML = `
-                    <video id="mainVideo" controls autoplay referrerpolicy="no-referrer" poster="<%= movie.poster || 'https://via.placeholder.com/300x400?text=No+Poster' %>">
-                        <source src="${url}" type="video/mp4">
+                    <video id="mainVideo" controls autoplay poster="<%= movie.poster || 'https://via.placeholder.com/300x400?text=No+Poster' %>">
+                        <source src="${finalStreamUrl}" type="video/mp4">
                         Your browser does not support the video element.
                     </video>
                 `;
